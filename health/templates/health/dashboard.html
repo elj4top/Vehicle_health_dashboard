@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicle Health Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #0f1419; color: #e6e6e6; }
+  header { padding: 20px 28px; border-bottom: 1px solid #2a323c; display: flex; justify-content: space-between; align-items: center; }
+  h1 { font-size: 20px; margin: 0; }
+  .badge { padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+  .HEALTHY { background: #1f6f43; } .WATCH { background: #a67c00; } .ATTENTION { background: #a33a3a; }
+  main { padding: 24px 28px; max-width: 1100px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card { background: #182028; border-radius: 10px; padding: 14px; }
+  .card .label { font-size: 12px; color: #8b97a5; }
+  .card .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  .panel { background: #182028; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; color: #c5ced8; }
+  .finding { padding: 10px 12px; border-left: 4px solid; margin-bottom: 8px; background: #1d2630; border-radius: 4px; font-size: 14px; }
+  .finding.bad { border-color: #d9534f; } .finding.warn { border-color: #e0a800; }
+  .finding.good { border-color: #3fb27f; } .finding.info { border-color: #4a90d9; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
+  canvas { max-height: 260px; }
+  footer { text-align: center; color: #6c7783; font-size: 12px; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vehicle Health Dashboard</h1>
+  <span class="badge {{ status_class }}">{{ status }}</span>
+</header>
+<main>
+  <div class="cards">
+    <div class="card"><div class="label">Engine speed</div><div class="value">{{ latest.RPM|floatformat:0 }} rpm</div></div>
+    <div class="card"><div class="label">Coolant temp</div><div class="value">{{ latest.COOLANT_TEMP|floatformat:0 }} &deg;C</div></div>
+    <div class="card"><div class="label">Short term trim</div><div class="value">{{ latest.SHORT_FUEL_TRIM_1|floatformat:1 }}%</div></div>
+    <div class="card"><div class="label">Long term trim</div><div class="value">{{ latest.LONG_FUEL_TRIM_1|floatformat:1 }}%</div></div>
+    <div class="card"><div class="label">Readings</div><div class="value">{{ sample_count }}</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Findings</h2>
+    {% for level, text in findings %}
+      <div class="finding {{ level }}">{{ text }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="charts">
+    <div class="panel"><h2>Engine speed and throttle</h2><canvas id="chartDrive"></canvas></div>
+    <div class="panel"><h2>Coolant temperature</h2><canvas id="chartCoolant"></canvas></div>
+    <div class="panel"><h2>Fuel trims</h2><canvas id="chartTrims"></canvas></div>
+  </div>
+</main>
+<footer>Part of the Automotive Technology &amp; Diagnostics Portfolio</footer>
+
+{{ chart_data|json_script:"chart-data" }}
+<script>
+  const d = JSON.parse(document.getElementById("chart-data").textContent);
+  const line = (label, data, color, axis) => ({
+    label, data, borderColor: color, backgroundColor: color, borderWidth: 2,
+    pointRadius: 0, tension: 0.25, yAxisID: axis || "y"
+  });
+  const common = { responsive: true, interaction: { mode: "index", intersect: false },
+    scales: { x: { ticks: { maxTicksLimit: 8, color: "#8b97a5" }, grid: { color: "#232c36" } } },
+    plugins: { legend: { labels: { color: "#c5ced8" } } } };
+
+  new Chart(document.getElementById("chartDrive"), {
+    type: "line",
+    data: { labels: d.labels, datasets: [line("RPM", d.rpm, "#4a90d9", "y"), line("Throttle %", d.throttle, "#e0a800", "y1")] },
+    options: { ...common, scales: { ...common.scales,
+      y: { position: "left", ticks: { color: "#8b97a5" }, grid: { color: "#232c36" } },
+      y1: { position: "right", ticks: { color: "#8b97a5" }, grid: { drawOnChartArea: false } } } }
+  });
+  new Chart(document.getElementById("chartCoolant"), {
+    type: "line", data: { labels: d.labels, datasets: [line("Coolant C", d.coolant, "#d9534f")] },
+    options: { ...common, scales: { ...common.scales, y: { ticks: { color: "#8b97a5" }, grid: { color: "#232c36" } } } }
+  });
+  new Chart(document.getElementById("chartTrims"), {
+    type: "line", data: { labels: d.labels, datasets: [line("Short term %", d.stft, "#3fb27f"), line("Long term %", d.ltft, "#c678dd")] },
+    options: { ...common, scales: { ...common.scales, y: { ticks: { color: "#8b97a5" }, grid: { color: "#232c36" } } } }
+  });
+</script>
+</body>
+</html>
